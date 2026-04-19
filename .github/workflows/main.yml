@@ -1,19 +1,21 @@
 name: Run News Bot
 on:
   schedule:
-    - cron: '0 * * * *' # هر ۱ ساعت یکبار
+    - cron: '0 * * * *' # هر ۱ ساعت یکبار اجرا می‌شود
   workflow_dispatch: # امکان اجرای دستی
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # این خط مشکل دسترسی و ارور ۱۲۸ را حل می‌کند
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4 # آپدیت به نسخه جدید
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v5 # آپدیت به نسخه جدید
         with:
-          python-version: '3.9'
+          python-version: '3.11'
       - name: Install dependencies
         run: pip install feedparser requests
       - name: Run bot
@@ -25,6 +27,7 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
+          touch sent_news.txt
           git add sent_news.txt
-          git commit -m "Update sent news list" || exit 0
+          git commit -m "Update sent news list" || echo "No changes to commit"
           git push
