@@ -4,7 +4,7 @@ import os
 
 # --- تنظیمات (این‌ها را در GitHub Secrets ست می‌کنیم) ---
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_CHAT_ID = os.getenv("@MohsenAbbaszadeh08") # آیدی عددی چت خصوصی خودتان
+ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID") # آیدی عددی چت خصوصی خودتان
 SENT_FILE = "sent_news.txt"
 
 SOURCES = {
