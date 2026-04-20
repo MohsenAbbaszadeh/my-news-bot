@@ -5,34 +5,61 @@ from datetime import datetime
 
 # --- تنظیمات ---
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
 SENT_FILE = "sent_news.txt"
+USERS_FILE = "users.txt" # فایل جدید برای ذخیره کاربران
 
-# لیست منابع شامل یوتیوب برای ویدیوها
+# لیست منابع
 SOURCES = {
-    "ایران اینترنشنال (متنی)": "https://www.iranintl.com/rss",
-    "بی‌بی‌سی فارسی (متنی)": "https://www.bbc.com/persian/index.xml",
+    "ایران اینترنشنال": "https://www.iranintl.com/rss",
+    "بی‌بی‌سی فارسی": "https://www.bbc.com/persian/index.xml",
     "رادیو فردا": "https://www.radiofarda.com/rss/?count=20",
     "ویدیوهای ایران اینترنشنال": "https://www.youtube.com/feeds/videos.xml?channel_id=UC6P_fS0U40C_H_A_XUv9XAw",
     "ویدیوهای بی‌بی‌سی فارسی": "https://www.youtube.com/feeds/videos.xml?channel_id=UC7O7Y077X_hX-PZ_XmUshXg"
 }
 
-def get_sent_links():
-    if not os.path.exists(SENT_FILE): return set()
-    with open(SENT_FILE, "r", encoding="utf-8") as f:
+def get_saved_data(filename):
+    if not os.path.exists(filename): return set()
+    with open(filename, "r", encoding="utf-8") as f:
         return set(f.read().splitlines())
 
-def save_sent_link(link):
-    with open(SENT_FILE, "a", encoding="utf-8") as f:
-        f.write(link + "\n")
+def save_data(filename, data_set):
+    with open(filename, "w", encoding="utf-8") as f:
+        for item in data_set:
+            f.write(str(item) + "\n")
 
-def send_telegram(text):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    payload = {"chat_id": ADMIN_CHAT_ID, "text": text, "parse_mode": "Markdown"}
-    return requests.post(url, data=payload)
+# پیدا کردن کاربران جدیدی که Start زده‌اند
+def update_users_list(users_set):
+    try:
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates"
+        res = requests.get(url).json()
+        if res.get("ok"):
+            for item in res["result"]:
+                if "message" in item and "chat" in item["message"]:
+                    chat_id = str(item["message"]["chat"]["id"])
+                    users_set.add(chat_id)
+    except Exception as e:
+        print("خطا در دریافت کاربران:", e)
+    return users_set
+
+# ارسال پیام برای تمام کاربران لیست
+def broadcast_message(text, users_set):
+    for chat_id in users_set:
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+        payload = {"chat_id": chat_id, "text": text, "parse_mode": "Markdown"}
+        requests.post(url, data=payload)
 
 def run_bot():
-    sent_links = get_sent_links()
+    sent_links = get_saved_data(SENT_FILE)
+    users = get_saved_data(USERS_FILE)
+    
+    # به‌روزرسانی لیست کاربران
+    users = update_users_list(users)
+    save_data(USERS_FILE, users)
+
+    if not users:
+        print("هنوز هیچ کاربری ربات را استارت نکرده است.")
+        return
+
     headers = {'User-Agent': 'Mozilla/5.0'}
     daily_headlines = []
 
@@ -41,11 +68,9 @@ def run_bot():
             response = requests.get(url, headers=headers, timeout=20)
             feed = feedparser.parse(response.content)
             
-            for entry in feed.entries[:5]: # بررسی ۵ خبر آخر
+            for entry in feed.entries[:5]:
                 if entry.link not in sent_links:
-                    # استخراج خلاصه خبر (اگر وجود داشت)
                     summary = entry.get('summary', '') or entry.get('description', '')
-                    # پاک کردن تگ‌های HTML احتمالی از خلاصه
                     summary = (summary[:300] + '...') if len(summary) > 300 else summary
                     
                     if "youtube" in entry.link:
@@ -53,18 +78,22 @@ def run_bot():
                     else:
                         message = f"📰 **{name}**\n\n🔹 **{entry.title}**\n\n📖 {summary}\n\n🔗 [مطالعه کامل خبر]({entry.link})"
                     
-                    send_telegram(message)
-                    save_sent_link(entry.link)
+                    # ارسال به همه کاربران
+                    broadcast_message(message, users)
+                    
+                    sent_links.add(entry.link)
                     daily_headlines.append(entry.title)
         except Exception as e:
             print(f"Error in {name}: {e}")
 
-    # --- بخش گزارش روزانه ---
-    # اگر ساعت به وقت سرور بین ۲۰ تا ۲۱ بود، یک خلاصه بفرست (تقریبا آخر شب ایران)
+    save_data(SENT_FILE, sent_links)
+
+    # --- بخش گزارش روزانه برای تورنتو (ساعت 8 صبح) ---
     current_hour = datetime.now().hour
     if current_hour == 12: 
-        summary_text = "🌙 **خلاصه اتفاقات مهم امروز:**\n\n" + "\n\n".join([f"▫️ {h}" for h in daily_headlines[:10]])
-        send_telegram(summary_text)
+        if daily_headlines:
+            summary_text = "☀️ **بررسی مطبوعات: صبح بخیر!**\n\nمهم‌ترین عناوین خبری:\n\n" + "\n\n".join([f"▫️ {h}" for h in daily_headlines[:12]])
+            broadcast_message(summary_text, users)
 
 if __name__ == "__main__":
     run_bot()
