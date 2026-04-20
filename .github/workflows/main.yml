@@ -27,7 +27,7 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          touch sent_news.txt
-          git add sent_news.txt
-          git commit -m "Update sent news list" || echo "No changes to commit"
+          touch sent_news.txt users.txt
+          git add sent_news.txt users.txt
+          git commit -m "Update news and users list" || echo "No changes to commit"
           git push
