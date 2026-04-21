@@ -12,3 +12,11 @@
 ردیت (پست‌های برتر سیاسی ایران), https://www.reddit.com/r/NewIran/top/.rss?t=day
 
 # نکته: برای اضافه کردن پادکست یا توییتر، فقط کافیست در خطوط بعدی اسم و لینک را با کاما بنویسید.
+# --- چهره‌های سیاسی و تاثیرگذار (توییتر) ---
+توییتر محمدباقر قالیباف, https://nitter.net/mb_ghalibaf/rss
+توییتر دونالد ترامپ, https://nitter.net/realDonaldTrump/rss
+توییتر علی خامنه‌ای (فارسی), https://nitter.net/Khamenei_fa/rss
+
+# --- تحلیلگران اقتصادی و بازار (توییتر) ---
+سیگنال ارز و طلا (مثال), https://nitter.net/Bazar_Arz/rss
+تحلیل‌های اقتصادی روز, https://nitter.net/EghtesadOnline/rss
