@@ -1,0 +1,14 @@
+# --- خبرگزاری‌های سیاسی و عمومی ---
+بی‌بی‌سی فارسی, https://www.bbc.com/persian/index.xml
+ایران اینترنشنال, https://www.iranintl.com/rss
+رادیو فردا, https://www.radiofarda.com/rss/?count=20
+
+# --- سایت‌های تخصصی اقتصادی ایران ---
+دنیای اقتصاد, https://donya-e-eqtesad.com/fa/feeds/
+اکوایران (ویدیو و خبر اقتصادی), https://ecoiran.com/fa/feeds/
+تجارت‌نیوز, https://tejaratnews.com/feed/
+
+# --- شبکه‌های اجتماعی ---
+ردیت (پست‌های برتر سیاسی ایران), https://www.reddit.com/r/NewIran/top/.rss?t=day
+
+# نکته: برای اضافه کردن پادکست یا توییتر، فقط کافیست در خطوط بعدی اسم و لینک را با کاما بنویسید.
