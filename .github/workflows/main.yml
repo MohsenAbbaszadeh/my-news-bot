@@ -1,27 +1,27 @@
 name: Run News Bot
 on:
   schedule:
-    - cron: '0 * * * *' # هر ۱ ساعت یکبار اجرا می‌شود
-  workflow_dispatch: # امکان اجرای دستی
+    - cron: '*/15 * * * *' # اجرای هر ۱۵ دقیقه برای اخبار فوری
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # این خط مشکل دسترسی و ارور ۱۲۸ را حل می‌کند
+      contents: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4 # آپدیت به نسخه جدید
+        uses: actions/checkout@v4
       - name: Set up Python
-        uses: actions/setup-python@v5 # آپدیت به نسخه جدید
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       - name: Install dependencies
-        run: pip install feedparser requests
+        run: pip install feedparser requests google-generativeai
       - name: Run bot
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-          ADMIN_CHAT_ID: ${{ secrets.ADMIN_CHAT_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }} # حتماً این خط را اضافه کنید
         run: python news_bot.py
       - name: Commit changes
         run: |
@@ -29,5 +29,5 @@ jobs:
           git config --local user.name "GitHub Action"
           touch sent_news.txt users.txt
           git add sent_news.txt users.txt
-          git commit -m "Update news and users list" || echo "No changes to commit"
+          git commit -m "Update logs" || echo "No changes"
           git push
