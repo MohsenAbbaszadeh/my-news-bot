@@ -4,20 +4,21 @@ import os
 from datetime import datetime
 import google.generativeai as genai
 
-# --- تنظیمات امنیتی ---
+# --- تنظیمات ---
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 SENT_FILE = "sent_news.txt"
 USERS_FILE = "users.txt"
 SOURCES_FILE = "sources.txt"
 
-# فعال‌سازی هوش مصنوعی گوگل
+# حد آستانه اهمیت (از ۱ تا ۱۰). عدد بالاتر یعنی سخت‌گیری بیشتر و پیام کمتر.
+IMPORTANCE_THRESHOLD = 7 
+
 if GEMINI_API_KEY:
     try:
         genai.configure(api_key=GEMINI_API_KEY)
         ai_model = genai.GenerativeModel('gemini-1.5-flash')
     except Exception as e:
-        print(f"AI Config Error: {e}")
         ai_model = None
 else:
     ai_model = None
@@ -43,18 +44,6 @@ def save_data(filename, data_set):
         for item in data_set:
             f.write(str(item) + "\n")
 
-def update_users_list(users_set):
-    try:
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates"
-        res = requests.get(url).json()
-        if res.get("ok"):
-            for item in res["result"]:
-                if "message" in item and "chat" in item["message"]:
-                    users_set.add(str(item["message"]["chat"]["id"]))
-    except Exception as e:
-        pass
-    return users_set
-
 def broadcast_message(text, users_set):
     for chat_id in users_set:
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
@@ -64,43 +53,58 @@ def broadcast_message(text, users_set):
 def run_bot():
     sent_links = get_saved_data(SENT_FILE)
     users = get_saved_data(USERS_FILE)
-    users = update_users_list(users)
-    save_data(USERS_FILE, users)
-
-    if not users:
-        print("هیچ کاربری یافت نشد. لطفاً در تلگرام به ربات پیام /start بدهید.")
-        return
-
     sources_dict = load_sources()
     headers = {'User-Agent': 'Mozilla/5.0'}
+
+    if not users: return
 
     for name, url in sources_dict.items():
         try:
             response = requests.get(url, headers=headers, timeout=20)
             feed = feedparser.parse(response.content)
             
-            for entry in feed.entries[:3]:
+            for entry in feed.entries[:5]: # بررسی ۵ خبر آخر هر منبع
                 if entry.link not in sent_links:
                     summary = entry.get('summary', '') or entry.get('description', '')
-                    summary = (summary[:350] + '...') if len(summary) > 350 else summary
+                    summary = summary[:400]
                     
+                    # --- مرحله فیلتر هوشمند ---
+                    is_important = True
                     ai_analysis = ""
-                    # فعال‌سازی تحلیل فقط برای منابع غیر ویدیویی
-                    if ai_model and "youtube" not in entry.link:
-                        try:
-                            # دستور اختصاصی برای تحلیل دلار و بورس
-                            prompt = (
-                                f"به عنوان یک تحلیلگر ارشد سیاسی-اقتصادی ایران، این خبر را در حداکثر ۳ خط تحلیل کن. "
-                                f"حتماً بگو این اتفاق چه تأثیر احتمالی بر 'قیمت دلار' یا 'شاخص بورس تهران' دارد:\n"
-                                f"تیتر: {entry.title}\nمتن: {summary}"
-                            )
-                            response_ai = ai_model.generate_content(prompt)
-                            ai_analysis = f"\n\n🧠 **تحلیل اختصاصی:**\n{response_ai.text.strip()}"
-                        except Exception as e:
-                            print(f"AI Error: {e}")
 
-                    message = f"📰 **منبع: {name}**\n\n🔹 **{entry.title}**{ai_analysis}\n\n🔗 [لینک منبع]({entry.link})"
-                    broadcast_message(message, users)
+                    if ai_model:
+                        try:
+                            # از هوش مصنوعی می‌خواهیم اهمیت را بسنجد
+                            prompt = (
+                                f"به عنوان یک سردبیر خبر خبره، این متن را بخوان:\n"
+                                f"تیتر: {entry.title}\nمتن: {summary}\n\n"
+                                f"۱. به این خبر از نظر اهمیت سیاسی یا اقتصادی برای ایران از ۱ تا ۱۰ نمره بده.\n"
+                                f"۲. اگر نمره بالای {IMPORTANCE_THRESHOLD} است، یک تحلیل ۳ خطی درباره تاثیر آن بر دلار و بورس بنویس.\n"
+                                f"۳. پاسخ را دقیقاً با این فرمت بده:\n"
+                                f"SCORE: [نمره]\n"
+                                f"ANALYSIS: [تحلیل شما]"
+                            )
+                            res = ai_model.generate_content(prompt).text
+                            
+                            # استخراج نمره از پاسخ AI
+                            try:
+                                score_part = res.split("SCORE:")[1].split("\n")[0].strip()
+                                score = int(''.join(filter(str.isdigit, score_part)))
+                            except:
+                                score = 5 # در صورت خطا، نمره متوسط
+
+                            if score < IMPORTANCE_THRESHOLD:
+                                is_important = False # خبر کم‌اهمیت است، ارسال نشود
+                            else:
+                                ai_analysis = res.split("ANALYSIS:")[1].strip() if "ANALYSIS:" in res else ""
+                        except Exception as e:
+                            print(f"AI Filter Error: {e}")
+
+                    # فقط اگر خبر مهم بود ارسال شود
+                    if is_important:
+                        message = f"🚨 **خبر مهم: {name}**\n\n🔹 **{entry.title}**\n\n🧠 **تحلیل:**\n{ai_analysis}\n\n🔗 [لینک منبع]({entry.link})"
+                        broadcast_message(message, users)
+                    
                     sent_links.add(entry.link)
         except Exception as e:
             print(f"Error in {name}: {e}")
