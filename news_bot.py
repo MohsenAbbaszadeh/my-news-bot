@@ -10,7 +10,7 @@ SENT_FILE = "sent_news.txt"
 USERS_FILE = "users.txt"
 SOURCES_FILE = "sources.txt"
 
-# حد آستانه اهمیت (از ۱ تا ۱۰). نمره ۷ برای اخبار مهم جهانی عالی است.
+# نمره ۷ یا ۸ برای اخبار واقعاً مهم - اگر باز هم پیام زیاد بود این را روی ۹ بگذارید
 IMPORTANCE_THRESHOLD = 7 
 
 if GEMINI_API_KEY:
@@ -18,6 +18,7 @@ if GEMINI_API_KEY:
         genai.configure(api_key=GEMINI_API_KEY)
         ai_model = genai.GenerativeModel('gemini-1.5-flash')
     except Exception as e:
+        print(f"AI Config Error: {e}")
         ai_model = None
 else:
     ai_model = None
@@ -46,7 +47,7 @@ def save_data(filename, data_set):
 def broadcast_message(text, users_set):
     for chat_id in users_set:
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-        payload = {"chat_id": chat_id, "text": text, "parse_mode": "Markdown", "disable_web_page_preview": True}
+        payload = {"chat_id": chat_id, "text": text, "parse_mode": "Markdown", "disable_web_page_preview": False}
         requests.post(url, data=payload)
 
 def run_bot():
@@ -55,59 +56,57 @@ def run_bot():
     sources_dict = load_sources()
     headers = {'User-Agent': 'Mozilla/5.0'}
 
-    if not users: return
+    if not users:
+        print("کاربری یافت نشد.")
+        return
 
     for name, url in sources_dict.items():
         try:
+            print(f"Checking {name}...")
             response = requests.get(url, headers=headers, timeout=20)
             feed = feedparser.parse(response.content)
             
-            for entry in feed.entries[:5]: 
+            for entry in feed.entries[:10]: # بررسی ۱۰ خبر آخر برای جا نماندن از اخبار مهم
                 if entry.link not in sent_links:
-                    summary = entry.get('summary', '') or entry.get('description', '')
-                    summary = summary[:500]
+                    ai_response_text = ""
+                    score = 0
                     
-                    is_important = False
-                    ai_summary = ""
-                    ai_analysis = ""
-
                     if ai_model:
                         try:
-                            # دستور جدید برای اخبار انگلیسی و ترجمه فارسی
                             prompt = (
-                                f"Act as a Senior International News Editor. Read this news:\n"
-                                f"Title: {entry.title}\nText: {summary}\n\n"
-                                f"۱. به اهمیت جهانی این خبر (فوری بودن) از ۱ تا ۱۰ نمره بده.\n"
-                                f"۲. اگر نمره مساوی یا بالای {IMPORTANCE_THRESHOLD} است، تیتر و متن را در ۲ خط به زبان «فارسی» ترجمه و خلاصه کن.\n"
-                                f"۳. در یک خط به زبان فارسی بگو این خبر چه تاثیری روی بازارهای جهانی (طلا، نفت، کریپتو یا اقتصاد) دارد.\n"
-                                f"دقیقاً با این فرمت جواب بده:\n"
-                                f"SCORE: [نمره]\n"
-                                f"SUMMARY: [خلاصه فارسی]\n"
-                                f"ANALYSIS: [تحلیل فارسی]"
+                                f"Translate this headline to Persian and rate its global economic/political importance from 1 to 10.\n"
+                                f"Headline: {entry.title}\n"
+                                f"Response format:\n"
+                                f"SCORE: [number]\n"
+                                f"PERSIAN_TITLE: [translation]\n"
+                                f"WHY_IMPORTANT: [one sentence explanation in Persian]"
                             )
                             res = ai_model.generate_content(prompt).text
                             
-                            try:
-                                score_part = res.split("SCORE:")[1].split("\n")[0].strip()
-                                score = int(''.join(filter(str.isdigit, score_part)))
-                            except:
-                                score = 5 
-
+                            # استخراج نمره و محتوا با روش امن‌تر
+                            for line in res.split('\n'):
+                                if "SCORE:" in line:
+                                    try: score = int(''.join(filter(str.isdigit, line)))
+                                    except: score = 0
+                            
                             if score >= IMPORTANCE_THRESHOLD:
-                                is_important = True
-                                try:
-                                    ai_summary = res.split("SUMMARY:")[1].split("ANALYSIS:")[0].strip()
-                                    ai_analysis = res.split("ANALYSIS:")[1].strip()
-                                except:
-                                    ai_summary = "خلاصه‌سازی انجام نشد."
-                                    ai_analysis = "تحلیلی در دسترس نیست."
-                        except Exception as e:
-                            print(f"AI Filter Error: {e}")
+                                persian_title = res.split("PERSIAN_TITLE:")[1].split("\n")[0].strip() if "PERSIAN_TITLE:" in res else entry.title
+                                why_important = res.split("WHY_IMPORTANT:")[1].strip() if "WHY_IMPORTANT:" in res else "بدون تحلیل"
+                                
+                                message = (
+                                    f"🔥 **خبر فوری و مهم ({name})**\n"
+                                    f"امتیاز اهمیت: {score}/10\n\n"
+                                    f"📌 **{persian_title}**\n\n"
+                                    f"💡 **دلیل اهمیت:** {why_important}\n\n"
+                                    f"🔗 [مشاهده متن اصلی خبر]({entry.link})"
+                                )
+                                broadcast_message(message, users)
+                                print(f"Sent: {entry.title} (Score: {score})")
+                            else:
+                                print(f"Skipped: {entry.title} (Score: {score})")
 
-                    # ارسال پیام فقط در صورت اهمیت بالا
-                    if is_important:
-                        message = f"🚨 **{name}**\n\n🔹 **{ai_summary}**\n\n🧠 **تحلیل بازار:**\n{ai_analysis}\n\n🔗 [لینک خبر انگلیسی]({entry.link})"
-                        broadcast_message(message, users)
+                        except Exception as e:
+                            print(f"AI error for {entry.title}: {e}")
                     
                     sent_links.add(entry.link)
         except Exception as e:
