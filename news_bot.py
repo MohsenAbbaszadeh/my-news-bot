@@ -1,7 +1,6 @@
 import feedparser
 import requests
 import os
-from datetime import datetime
 import google.generativeai as genai
 
 # --- تنظیمات ---
@@ -11,7 +10,7 @@ SENT_FILE = "sent_news.txt"
 USERS_FILE = "users.txt"
 SOURCES_FILE = "sources.txt"
 
-# حد آستانه اهمیت (از ۱ تا ۱۰). عدد بالاتر یعنی سخت‌گیری بیشتر و پیام کمتر.
+# حد آستانه اهمیت (از ۱ تا ۱۰). نمره ۷ برای اخبار مهم جهانی عالی است.
 IMPORTANCE_THRESHOLD = 7 
 
 if GEMINI_API_KEY:
@@ -47,7 +46,7 @@ def save_data(filename, data_set):
 def broadcast_message(text, users_set):
     for chat_id in users_set:
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-        payload = {"chat_id": chat_id, "text": text, "parse_mode": "Markdown"}
+        payload = {"chat_id": chat_id, "text": text, "parse_mode": "Markdown", "disable_web_page_preview": True}
         requests.post(url, data=payload)
 
 def run_bot():
@@ -63,46 +62,51 @@ def run_bot():
             response = requests.get(url, headers=headers, timeout=20)
             feed = feedparser.parse(response.content)
             
-            for entry in feed.entries[:5]: # بررسی ۵ خبر آخر هر منبع
+            for entry in feed.entries[:5]: 
                 if entry.link not in sent_links:
                     summary = entry.get('summary', '') or entry.get('description', '')
-                    summary = summary[:400]
+                    summary = summary[:500]
                     
-                    # --- مرحله فیلتر هوشمند ---
-                    is_important = True
+                    is_important = False
+                    ai_summary = ""
                     ai_analysis = ""
 
                     if ai_model:
                         try:
-                            # از هوش مصنوعی می‌خواهیم اهمیت را بسنجد
+                            # دستور جدید برای اخبار انگلیسی و ترجمه فارسی
                             prompt = (
-                                f"به عنوان یک سردبیر خبر خبره، این متن را بخوان:\n"
-                                f"تیتر: {entry.title}\nمتن: {summary}\n\n"
-                                f"۱. به این خبر از نظر اهمیت سیاسی یا اقتصادی برای ایران از ۱ تا ۱۰ نمره بده.\n"
-                                f"۲. اگر نمره بالای {IMPORTANCE_THRESHOLD} است، یک تحلیل ۳ خطی درباره تاثیر آن بر دلار و بورس بنویس.\n"
-                                f"۳. پاسخ را دقیقاً با این فرمت بده:\n"
+                                f"Act as a Senior International News Editor. Read this news:\n"
+                                f"Title: {entry.title}\nText: {summary}\n\n"
+                                f"۱. به اهمیت جهانی این خبر (فوری بودن) از ۱ تا ۱۰ نمره بده.\n"
+                                f"۲. اگر نمره مساوی یا بالای {IMPORTANCE_THRESHOLD} است، تیتر و متن را در ۲ خط به زبان «فارسی» ترجمه و خلاصه کن.\n"
+                                f"۳. در یک خط به زبان فارسی بگو این خبر چه تاثیری روی بازارهای جهانی (طلا، نفت، کریپتو یا اقتصاد) دارد.\n"
+                                f"دقیقاً با این فرمت جواب بده:\n"
                                 f"SCORE: [نمره]\n"
-                                f"ANALYSIS: [تحلیل شما]"
+                                f"SUMMARY: [خلاصه فارسی]\n"
+                                f"ANALYSIS: [تحلیل فارسی]"
                             )
                             res = ai_model.generate_content(prompt).text
                             
-                            # استخراج نمره از پاسخ AI
                             try:
                                 score_part = res.split("SCORE:")[1].split("\n")[0].strip()
                                 score = int(''.join(filter(str.isdigit, score_part)))
                             except:
-                                score = 5 # در صورت خطا، نمره متوسط
+                                score = 5 
 
-                            if score < IMPORTANCE_THRESHOLD:
-                                is_important = False # خبر کم‌اهمیت است، ارسال نشود
-                            else:
-                                ai_analysis = res.split("ANALYSIS:")[1].strip() if "ANALYSIS:" in res else ""
+                            if score >= IMPORTANCE_THRESHOLD:
+                                is_important = True
+                                try:
+                                    ai_summary = res.split("SUMMARY:")[1].split("ANALYSIS:")[0].strip()
+                                    ai_analysis = res.split("ANALYSIS:")[1].strip()
+                                except:
+                                    ai_summary = "خلاصه‌سازی انجام نشد."
+                                    ai_analysis = "تحلیلی در دسترس نیست."
                         except Exception as e:
                             print(f"AI Filter Error: {e}")
 
-                    # فقط اگر خبر مهم بود ارسال شود
+                    # ارسال پیام فقط در صورت اهمیت بالا
                     if is_important:
-                        message = f"🚨 **خبر مهم: {name}**\n\n🔹 **{entry.title}**\n\n🧠 **تحلیل:**\n{ai_analysis}\n\n🔗 [لینک منبع]({entry.link})"
+                        message = f"🚨 **{name}**\n\n🔹 **{ai_summary}**\n\n🧠 **تحلیل بازار:**\n{ai_analysis}\n\n🔗 [لینک خبر انگلیسی]({entry.link})"
                         broadcast_message(message, users)
                     
                     sent_links.add(entry.link)
