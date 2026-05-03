@@ -11,7 +11,7 @@ SENT_FILE = "sent_news.txt"
 SOURCES_FILE = "sources.txt"
 
 # حد آستانه اهمیت خبر (از ۱ تا ۱۰)
-IMPORTANCE_THRESHOLD = 7 
+IMPORTANCE_THRESHOLD = 1
 
 # راه‌اندازی کلاینت Groq
 if GROQ_API_KEY:
