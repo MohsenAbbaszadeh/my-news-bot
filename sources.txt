@@ -1,3 +1,2 @@
-# --- اخبار فوری و مهم جهانی ---
-اخبار فوری رویترز, https://news.google.com/rss/search?q=source:"Reuters"+when:1d&hl=en-US&gl=US&ceid=US:en
-رویترز (اقتصاد و تجارت جهانی), https://news.google.com/rss/search?q=source:"Reuters"+business+when:1d&hl=en-US&gl=US&ceid=US:en
+رویترز جهانی, https://news.google.com/rss/search?q=source:Reuters+when:1h&hl=en-US&gl=US&ceid=US:en
+رویترز بیزنس, https://news.google.com/rss/search?q=source:Reuters+business+when:1h&hl=en-US&gl=US&ceid=US:en
