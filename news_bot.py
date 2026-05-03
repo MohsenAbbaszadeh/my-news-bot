@@ -88,7 +88,7 @@ def run_bot():
                             
                             chat_completion = client.chat.completions.create(
                                 messages=[{"role": "user", "content": prompt}],
-                                model="llama3-70b-8192", 
+                                model="mixtral-8x7b-32768", 
                                 temperature=0.1, # دما را کم کردیم تا فقط واقعیت را بگوید و خلاقیت به خرج ندهد
                             )
                             
