@@ -46,25 +46,27 @@ def run_bot():
                 
             print(f"در حال بررسی تیتر: {entry.title}")
             
-            # 🧠 پرامپت جدید با قوانین سفت و سخت برای زبان فارسی
+            # 🧠 پرامپت اصلاح‌شده: فقط تاکید روی الفبای فارسی (بدون اشاره به زبان‌های دیگر)
             prompt = (
-                f"You are a Senior News Editor and an expert Persian linguist. Analyze this headline: '{entry.title}'\n\n"
+                f"You are an expert Persian (Farsi) news editor and a top-tier translator. "
+                f"Analyze this headline: '{entry.title}'\n\n"
                 f"Task 1: Rate its GLOBAL IMPORTANCE from 1 to 10.\n"
-                f"Task 2: IF the score is 5 or higher, write a highly professional Persian news report.\n\n"
-                f"CRITICAL RULES FOR PERSIAN TRANSLATION:\n"
-                f"1. Use 100% natural, fluent, and flawless Persian.\n"
-                f"2. ABSOLUTELY DO NOT use any Chinese, Japanese, or strange characters (like 穩).\n"
-                f"3. Do not repeat sentences. Make the summary rich, engaging, and journalistic (2 paragraphs).\n\n"
+                f"Task 2: IF the score is 5 or higher, write a professional Persian news report.\n\n"
+                f"CRITICAL RULES FOR TRANSLATION:\n"
+                f"1. Write EXACTLY and ONLY in the Persian language (Farsi).\n"
+                f"2. Use ONLY the standard Persian alphabet. NEVER use any other scripts, letters, or foreign characters.\n"
+                f"3. Ensure the text flows naturally, like a formal report from a major Iranian news agency (e.g., IRNA or ISNA).\n"
+                f"4. Write 2 well-structured paragraphs without repeating sentences.\n\n"
                 f"Reply EXACTLY in this format:\n"
                 f"SCORE: [number from 1 to 10]\n"
                 f"PERSIAN_TITLE: [Catchy Persian title]\n"
                 f"SUMMARY: [Detailed, perfect Persian analysis]"
             )
             
-            # 🚀 استفاده از مدل غول‌پیکر و قدرتمند 70B
+            # 🚀 استفاده از مدل Gemma 2 گوگل که در فارسی شاهکار است
             chat_completion = client.chat.completions.create(
                 messages=[{"role": "user", "content": prompt}],
-                model="llama-3.3-70b-versatile", 
+                model="gemma2-9b-it", 
                 temperature=0.3, 
             )
             
