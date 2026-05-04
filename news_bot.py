@@ -66,7 +66,7 @@ def run_bot():
             # 🚀 استفاده از مدل Gemma 2 گوگل که در فارسی شاهکار است
             chat_completion = client.chat.completions.create(
                 messages=[{"role": "user", "content": prompt}],
-                model="gemma2-9b-it", 
+                model="llama-3.3-70b-versatile", 
                 temperature=0.3, 
             )
             
