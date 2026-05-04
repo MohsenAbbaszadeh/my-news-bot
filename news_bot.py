@@ -48,7 +48,7 @@ def run_bot():
         # استفاده از مدل فوق‌سریع و فعالِ Groq
         chat_completion = client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
-            model="mixtral-8x7b-32768",
+            model="llama-3.1-8b-instant",
             temperature=0.1,
         )
         
