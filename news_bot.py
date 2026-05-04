@@ -20,50 +20,53 @@ def run_bot():
     
     try:
         feed = feedparser.parse(feed_url)
-        print(f"تعداد خبرهای پیدا شده: {len(feed.entries)}")
         
         if len(feed.entries) == 0:
-            print("❌ هیچ خبری پیدا نشد! مشکل از دریافت اطلاعات است.")
+            print("❌ هیچ خبری پیدا نشد!")
             return
 
-        # فقط اولین و جدیدترین خبر را برمی‌داریم
+        # گرفتن جدیدترین خبر
         entry = feed.entries[0] 
-        print(f"تیتر خبر: {entry.title}")
         
         if not GROQ_API_KEY:
-            print("❌ کلید Groq API در گیت‌هاب پیدا نشد!")
+            print("❌ کلید Groq API پیدا نشد!")
             return
             
-        print("در حال ارتباط با هوش مصنوعی Groq...")
+        print("در حال ارتباط با هوش مصنوعی...")
         client = Groq(api_key=GROQ_API_KEY)
         
+        # 🧠 دستور (پرامپت) حرفه‌ای به هوش مصنوعی
         prompt = (
-            f"You are a news translator. Read this:\n"
-            f"Headline: '{entry.title}'\n\n"
+            f"You are an expert international journalist and a highly skilled native Persian translator. "
+            f"Read the following news headline: '{entry.title}'\n\n"
+            f"Based on this news, write a comprehensive, flawless, and highly professional news report in Persian. "
             f"Reply EXACTLY in this format:\n"
-            f"PERSIAN_TITLE: [translate headline to Persian]\n"
-            f"SUMMARY: [write a 2-sentence factual summary in Persian]"
+            f"PERSIAN_TITLE: [Provide a catchy, accurate, and professional Persian translation of the headline]\n"
+            f"SUMMARY: [Write a detailed explanation in 2 to 3 well-structured paragraphs. "
+            f"Explain the context of the news, why it is important, and provide a clear analysis. "
+            f"The tone MUST be strictly journalistic, neutral, and grammatically perfect in Persian. "
+            f"Do not use robotic language; make it sound like a top-tier Persian news agency.]"
         )
         
-        # استفاده از مدل فوق‌سریع و فعالِ Groq
+        # استفاده از مدل فعال و تنظیم دمای هوش مصنوعی برای متن روان‌تر
         chat_completion = client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
             model="llama-3.1-8b-instant",
-            temperature=0.1,
+            temperature=0.3, 
         )
         
         res = chat_completion.choices[0].message.content
         print("✅ ترجمه هوش مصنوعی با موفقیت انجام شد.")
         
-        # مرتب‌سازی متن پیام
+        # جداسازی تیتر و متن
         persian_title = res.split("PERSIAN_TITLE:")[1].split("\n")[0].strip() if "PERSIAN_TITLE:" in res else entry.title
-        summary = res.split("SUMMARY:")[1].strip() if "SUMMARY:" in res else "بدون خلاصه"
+        summary = res.split("SUMMARY:")[1].strip() if "SUMMARY:" in res else res
         
+        # قالب‌بندی زیبای پیام برای تلگرام
         message = (
-            f"🔥 **اولین خبر ترجمه شده با هوش مصنوعی**\n\n"
-            f"📌 **{persian_title}**\n\n"
-            f"📝 **خلاصه:** {summary}\n\n"
-            f"🔗 [لینک خبر]({entry.link})"
+            f"📰 **{persian_title}**\n\n"
+            f"📝 **شرح و تحلیل خبر:**\n{summary}\n\n"
+            f"🔗 [مشاهده منبع اصلی خبر]({entry.link})"
         )
         
         broadcast_message(message)
