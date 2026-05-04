@@ -27,7 +27,6 @@ def run_bot():
     print("شروع رادار اخبار جهان...")
     sent_links = get_saved_links()
     
-    # فید اخبار ۱ ساعت گذشته رویترز
     feed_url = "https://news.google.com/rss/search?q=source:Reuters+when:1h&hl=en-US&gl=US&ceid=US:en"
     
     try:
@@ -41,34 +40,36 @@ def run_bot():
             print("❌ کلید Groq پیدا نشد!")
             return
             
-        # بررسی ۳ خبر تازه
         for entry in feed.entries[:3]:
             if entry.link in sent_links:
                 continue 
                 
             print(f"در حال بررسی تیتر: {entry.title}")
             
-            # دستور متعادل‌تر به هوش مصنوعی
+            # 🧠 پرامپت جدید با قوانین سفت و سخت برای زبان فارسی
             prompt = (
-                f"You are a Senior News Editor. Analyze this headline: '{entry.title}'\n\n"
-                f"Task 1: Rate its GLOBAL IMPORTANCE from 1 to 10. "
-                f"(10 = World-changing event/War, 5 = Important international news, economy, tech, or politics, 1 = Trivial/local daily news).\n"
-                f"Task 2: IF the score is 5 or higher, write a highly professional Persian news report (2 paragraphs).\n\n"
+                f"You are a Senior News Editor and an expert Persian linguist. Analyze this headline: '{entry.title}'\n\n"
+                f"Task 1: Rate its GLOBAL IMPORTANCE from 1 to 10.\n"
+                f"Task 2: IF the score is 5 or higher, write a highly professional Persian news report.\n\n"
+                f"CRITICAL RULES FOR PERSIAN TRANSLATION:\n"
+                f"1. Use 100% natural, fluent, and flawless Persian.\n"
+                f"2. ABSOLUTELY DO NOT use any Chinese, Japanese, or strange characters (like 穩).\n"
+                f"3. Do not repeat sentences. Make the summary rich, engaging, and journalistic (2 paragraphs).\n\n"
                 f"Reply EXACTLY in this format:\n"
                 f"SCORE: [number from 1 to 10]\n"
-                f"PERSIAN_TITLE: [Professional Persian translation]\n"
-                f"SUMMARY: [Detailed Persian summary/analysis]"
+                f"PERSIAN_TITLE: [Catchy Persian title]\n"
+                f"SUMMARY: [Detailed, perfect Persian analysis]"
             )
             
+            # 🚀 استفاده از مدل غول‌پیکر و قدرتمند 70B
             chat_completion = client.chat.completions.create(
                 messages=[{"role": "user", "content": prompt}],
-                model="llama-3.1-8b-instant",
-                temperature=0.2, 
+                model="llama-3.3-70b-versatile", 
+                temperature=0.3, 
             )
             
             res = chat_completion.choices[0].message.content
             
-            # استخراج نمره خبر
             score = 0
             for line in res.split('\n'):
                 if "SCORE:" in line:
@@ -77,12 +78,10 @@ def run_bot():
                     
             print(f"نمره اهمیت این خبر: {score}/10")
             
-            # نمره قبولی به 5 کاهش یافت (اخبار مهم دنیا)
             if score >= 5:
                 persian_title = res.split("PERSIAN_TITLE:")[1].split("\n")[0].strip() if "PERSIAN_TITLE:" in res else entry.title
                 summary = res.split("SUMMARY:")[1].strip() if "SUMMARY:" in res else "جزئیات بیشتر در لینک خبر..."
                 
-                # آیکون‌ها بر اساس میزان اهمیت تغییر می‌کنند
                 icon = "🚨" if score >= 8 else "📰"
                 urgency_text = "خبر فوری و بسیار مهم!" if score >= 8 else "خبر مهم جهانی"
                 
