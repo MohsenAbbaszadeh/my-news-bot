@@ -7,6 +7,16 @@ from groq import Groq
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+SENT_FILE = "sent_news.txt"
+
+def get_saved_links():
+    if not os.path.exists(SENT_FILE): return set()
+    with open(SENT_FILE, "r", encoding="utf-8") as f:
+        return set(f.read().splitlines())
+
+def save_link(link):
+    with open(SENT_FILE, "a", encoding="utf-8") as f:
+        f.write(link + "\n")
 
 def broadcast_message(text):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
@@ -14,64 +24,83 @@ def broadcast_message(text):
     requests.post(url, data=payload)
 
 def run_bot():
-    print("شروع دریافت اخبار...")
-    # لینک مستقیم گوگل نیوز برای اخبار رویترز
-    feed_url = "https://news.google.com/rss/search?q=source:Reuters+when:1d&hl=en-US&gl=US&ceid=US:en"
+    print("شروع رادار اخبار جهان...")
+    sent_links = get_saved_links()
+    
+    # فید اخبار ۱ ساعت گذشته رویترز
+    feed_url = "https://news.google.com/rss/search?q=source:Reuters+when:1h&hl=en-US&gl=US&ceid=US:en"
     
     try:
         feed = feedparser.parse(feed_url)
-        
         if len(feed.entries) == 0:
-            print("❌ هیچ خبری پیدا نشد!")
+            print("خبر جدیدی در یک ساعت گذشته یافت نشد.")
             return
 
-        # گرفتن جدیدترین خبر
-        entry = feed.entries[0] 
-        
-        if not GROQ_API_KEY:
-            print("❌ کلید Groq API پیدا نشد!")
+        client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
+        if not client:
+            print("❌ کلید Groq پیدا نشد!")
             return
             
-        print("در حال ارتباط با هوش مصنوعی...")
-        client = Groq(api_key=GROQ_API_KEY)
-        
-        # 🧠 دستور (پرامپت) حرفه‌ای به هوش مصنوعی
-        prompt = (
-            f"You are an expert international journalist and a highly skilled native Persian translator. "
-            f"Read the following news headline: '{entry.title}'\n\n"
-            f"Based on this news, write a comprehensive, flawless, and highly professional news report in Persian. "
-            f"Reply EXACTLY in this format:\n"
-            f"PERSIAN_TITLE: [Provide a catchy, accurate, and professional Persian translation of the headline]\n"
-            f"SUMMARY: [Write a detailed explanation in 2 to 3 well-structured paragraphs. "
-            f"Explain the context of the news, why it is important, and provide a clear analysis. "
-            f"The tone MUST be strictly journalistic, neutral, and grammatically perfect in Persian. "
-            f"Do not use robotic language; make it sound like a top-tier Persian news agency.]"
-        )
-        
-        # استفاده از مدل فعال و تنظیم دمای هوش مصنوعی برای متن روان‌تر
-        chat_completion = client.chat.completions.create(
-            messages=[{"role": "user", "content": prompt}],
-            model="llama-3.1-8b-instant",
-            temperature=0.3, 
-        )
-        
-        res = chat_completion.choices[0].message.content
-        print("✅ ترجمه هوش مصنوعی با موفقیت انجام شد.")
-        
-        # جداسازی تیتر و متن
-        persian_title = res.split("PERSIAN_TITLE:")[1].split("\n")[0].strip() if "PERSIAN_TITLE:" in res else entry.title
-        summary = res.split("SUMMARY:")[1].strip() if "SUMMARY:" in res else res
-        
-        # قالب‌بندی زیبای پیام برای تلگرام
-        message = (
-            f"📰 **{persian_title}**\n\n"
-            f"📝 **شرح و تحلیل خبر:**\n{summary}\n\n"
-            f"🔗 [مشاهده منبع اصلی خبر]({entry.link})"
-        )
-        
-        broadcast_message(message)
-        print("✅ پیام به تلگرام ارسال شد!")
-        
+        # بررسی ۳ خبر تازه
+        for entry in feed.entries[:3]:
+            if entry.link in sent_links:
+                continue 
+                
+            print(f"در حال بررسی تیتر: {entry.title}")
+            
+            # دستور متعادل‌تر به هوش مصنوعی
+            prompt = (
+                f"You are a Senior News Editor. Analyze this headline: '{entry.title}'\n\n"
+                f"Task 1: Rate its GLOBAL IMPORTANCE from 1 to 10. "
+                f"(10 = World-changing event/War, 5 = Important international news, economy, tech, or politics, 1 = Trivial/local daily news).\n"
+                f"Task 2: IF the score is 5 or higher, write a highly professional Persian news report (2 paragraphs).\n\n"
+                f"Reply EXACTLY in this format:\n"
+                f"SCORE: [number from 1 to 10]\n"
+                f"PERSIAN_TITLE: [Professional Persian translation]\n"
+                f"SUMMARY: [Detailed Persian summary/analysis]"
+            )
+            
+            chat_completion = client.chat.completions.create(
+                messages=[{"role": "user", "content": prompt}],
+                model="llama-3.1-8b-instant",
+                temperature=0.2, 
+            )
+            
+            res = chat_completion.choices[0].message.content
+            
+            # استخراج نمره خبر
+            score = 0
+            for line in res.split('\n'):
+                if "SCORE:" in line:
+                    try: score = int(''.join(filter(str.isdigit, line)))
+                    except: score = 0
+                    
+            print(f"نمره اهمیت این خبر: {score}/10")
+            
+            # نمره قبولی به 5 کاهش یافت (اخبار مهم دنیا)
+            if score >= 5:
+                persian_title = res.split("PERSIAN_TITLE:")[1].split("\n")[0].strip() if "PERSIAN_TITLE:" in res else entry.title
+                summary = res.split("SUMMARY:")[1].strip() if "SUMMARY:" in res else "جزئیات بیشتر در لینک خبر..."
+                
+                # آیکون‌ها بر اساس میزان اهمیت تغییر می‌کنند
+                icon = "🚨" if score >= 8 else "📰"
+                urgency_text = "خبر فوری و بسیار مهم!" if score >= 8 else "خبر مهم جهانی"
+                
+                message = (
+                    f"{icon} **{urgency_text}**\n"
+                    f"🔹 میزان اهمیت: {score}/10\n\n"
+                    f"**{persian_title}**\n\n"
+                    f"📝 **شرح ماجرا:**\n{summary}\n\n"
+                    f"🔗 [مشاهده منبع اصلی خبر]({entry.link})"
+                )
+                
+                broadcast_message(message)
+                print("✅ پیام به تلگرام ارسال شد!")
+            else:
+                print("❌ خبر معمولی بود. (رد شد)")
+                
+            save_link(entry.link)
+            
     except Exception as e:
         print(f"❌ خطای سیستم: {e}")
 
